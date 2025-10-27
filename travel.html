@@ -15,10 +15,45 @@
   <!-- <link rel="mask-icon" href="https://static.parastorage.com/client/pfavico.ico"> -->
 
   <!-- Original trials -->
-  
 
+    <!-- Local overrides for static hosting: smooth scroll + responsive flex stacking -->
+    <style id="local-overrides">
+        html { scroll-behavior: smooth; }
+        /* Improve responsiveness outside Wix runtime by relaxing fixed widths */
+        #SITE_CONTAINER, #site-root, #masterPage, #PAGES_CONTAINER, #SITE_PAGES { min-width: 0 !important; width: 100% !important; }
+        [id^="comp-"], [id^="pageBackground_"], [id^="bgLayers_"] { min-width: 0 !important; }
+        .wixui-section, .wixui-column-strip__column { width: 100% !important; }
+        /* Stack columns on small screens; split on larger */
+        .V5AUxf { display: flex !important; flex-wrap: wrap !important; }
+        .V5AUxf > * { flex: 1 1 100% !important; }
+        @media (min-width: 900px) { .V5AUxf > * { flex: 1 1 50% !important; } }
+        /* Ensure media scales */
+        img { max-width: 100%; height: auto; }
+        wow-image, wix-media-canvas { display: block; max-width: 100%; }
+        .BI8PVQ, .Tj01hh { width: 100% !important; height: auto !important; }
+    </style>
+    <script>
+        // Minimal in-page smooth scroll for anchor links, if any exist
+        (function () {
+            document.addEventListener('click', function (e) {
+                var a = e.target && e.target.closest && e.target.closest('a[href^="#"]');
+                if (!a) return;
+                var href = a.getAttribute('href');
+                if (!href || href.length < 2) return;
+                try {
+                    var target = document.querySelector(href);
+                    if (target) {
+                        e.preventDefault();
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                } catch (err) { /* noop */ }
+            }, { passive: false });
+        })();
+        // Avoid blocking page if some Wix runtime APIs are unavailable
+        window.addEventListener('error', function(){ /* swallow non-critical runtime errors */ }, true);
+        </script>
 
-  <!-- Segmenter Polyfill -->
+    <!-- Segmenter Polyfill -->
   <script>
     if (!window.Intl || !window.Intl.Segmenter) {
       (function() {
@@ -75,6 +110,51 @@
   <script>
     window.commonConfig = viewerModel.commonConfig
   </script>
+
+    <!-- Remove dependency on earnintravel.com: rewrite links and neutralize runtime endpoints -->
+    <script>
+        (function() {
+            var EXTERNAL = 'https://www.earnintravel.com';
+            // Rewrite any anchors pointing to the external domain
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    document.querySelectorAll('a[href^="' + EXTERNAL + '"]').forEach(function(a) {
+                        var url;
+                        try { url = new URL(a.href); } catch (e) { url = null; }
+                        var path = url ? url.pathname : '/';
+                        // Map some common paths to local equivalents if desired; default to '#'
+                        var localHref = '#';
+                        if (path === '/' || path === '') localHref = 'index.html';
+                        a.href = localHref;
+                        a.target = '_self';
+                        a.rel = 'noopener';
+                    });
+                } catch (e) { /* noop */ }
+            });
+
+            // Sanitize the viewer model to avoid cross-origin calls
+            try {
+                if (window.viewerModel) {
+                    var vm = window.viewerModel;
+                    if (vm.site) vm.site.externalBaseUrl = window.location.origin;
+                    if (vm.requestUrl) vm.requestUrl = window.location.href;
+                    if (vm.dynamicModelUrl) vm.dynamicModelUrl = 'about:blank';
+                    if (vm.accessTokensUrl) vm.accessTokensUrl = 'about:blank';
+                    if (vm.siteAssets && vm.siteAssets.clientTopology) {
+                        // Remove the external domain from the list of page JSON server URLs if present
+                        var urls = vm.siteAssets.clientTopology.pageJsonServerUrls || [];
+                        vm.siteAssets.clientTopology.pageJsonServerUrls = urls.filter(function(u){ return !/^https?:\/\/www\.earnintravel\.com\b/.test(u); });
+                    }
+                }
+            } catch (e) { /* noop */ }
+
+            // Provide a safe stub for dynamic model fetches
+            try {
+                window.fetchDynamicModel = function() { return Promise.resolve({}); };
+                window.dynamicModelPromise = window.fetchDynamicModel();
+            } catch (e) { /* noop */ }
+        })();
+    </script>
 
   
   <!-- BEGIN handleAccessTokens bundle -->
